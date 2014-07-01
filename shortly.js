@@ -2,6 +2,7 @@ var express = require('express');
 var util = require('./lib/utility');
 var partials = require('express-partials');
 var bcrypt = require('bcrypt-nodejs');
+var session = require('express-session');
 
 var db = require('./app/config');
 var Users = require('./app/collections/users');
@@ -21,8 +22,19 @@ app.configure(function() {
   // app.use(express.cookieSession());
 });
 
+//session attempt
+app.use(session({
+  genid: function() {
+    return bcrypt.hashSync(Math.random());
+  },
+  secret: 'keyboard cat',
+  rolling: true,
+  cookie: { httpOnly: true, secure: false, maxAge: 60000 }
+}));
+
 app.get('/', function(req, res) {
-  res.render('index');
+  // res.render('index');
+  checkUser(req, res);
 });
 
 app.get('/create', function(req, res) {
@@ -82,91 +94,69 @@ app.get('/signup', function(req, res) {
 
 app.post('/signup', function(req, res) {
 
-  // maybe use express-session module
-
   var username = req.body.username;
   var password = req.body.password;
 
-  newUser(username, password);
-  // if the user name already exists
-    // redirect to signup *not a complete solution
-  // if password is valid
-    // build salt
-    // create hash
-    // store salt, hash, and username in db
-    // start a new session
-    // redirect to user page
+  newUser(username, password, req, res);
 
 });
 
 app.post('/login', function(req, res) {
 
-  // console.log("Logging in: ", req, res);
-
   var username = req.body.username;
   var password = req.body.password;
 
   db.knex('users').where('username', '=', username).then(function(result) {
-    var saltyHash = result[0].password;
-    var ogHash = bcrypt.hashSync(password, result[0].salt);
 
-    console.log("  salt", result[0].salt);
-    console.log("saltyHash", saltyHash);
-    console.log("  ogHash", ogHash);
-    console.log("  Pass", password);
-
-    console.log(saltyHash === ogHash);
-    console.log(bcrypt.compareSync(password, saltyHash));
-
-
-    if (bcrypt.compareSync(password, saltyHash)) {
+    if (bcrypt.compareSync(password, result[0].password)) {
       console.log("You're logged in");
-      // start a new session
-      // redirect to user page
+      req.session.regenerate(function(){
+        // start a new session
+        req.session.user = username;
+        console.log("COOKIE ", req.session);
+        res.redirect('/');
+      });
     } else {
       // redirect to login page
       console.log("Wrong Password");
+      res.redirect('/login');
     }
   });
 
 });
 
-// start a new session
-var newSession = function() {
-  //
-
-  // create a session
-  // set token
-  // return session
+var checkUser = function(req, res) {
+  // check if req has a valid session for this user
+  if (req.session.user) {
+    // next();
+    res.render('index');
+  } else {
+    req.session.error = 'Access denied!';
+    console.log('access denied');
+    res.redirect('/login');
+  }
 };
 
-var newUser = function(username, password) {
+app.get('/logout', function(req, res){
+  req.session.destroy();
+  res.redirect('/login');
+});
 
-  console.log("Creating new user ", username, password);
+var newUser = function(username, password, req, res) {
 
-  // var requestWithSession = request.defaults({jar: true});
-
-  // create a user that we can then log-in with
-  new User({
-    'username': username,
-    'password': password
-  }).save().then(function(model){
-    // console.log(model);
-    // var options = {
-    //   'method': 'POST',
-    //   'followAllRedirects': true,
-    //   'uri': 'http://127.0.0.1:4568/login',
-    //   'json': {
-    //     'username': username,
-    //     'password': password
-    //   }
-    // };
+  db.knex('users').where('username', '=', username).then(function(result) {
+    console.log("results ", result);
+    if (!result.length) {
+      new User({
+        'username': username,
+        'password': password
+      }).save().then(function() {
+        res.redirect('/');
+      });
+    } else {
+      res.redirect('/login');
+    }
   });
-
-  // login via form and save session info
-  // requestWithSession(options, function(error, res, body) {
-  //   done();
-  // });
 };
 
 /************************************************************/
