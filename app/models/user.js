@@ -6,10 +6,14 @@ var User = db.Model.extend({
   tableName: 'users',
   hasTimeStamps: true,
   initialize: function(){
-    console.log("Initing User ", this);
-    var hash = bcrypt.hashSync(this.password);
-    // model.set('username', model.username);
+    console.log("Init Pass ", this.password);
+    console.log(this);
+    var salt = bcrypt.genSaltSync(10);
+    console.log(" initSalt ", salt);
+    var hash = bcrypt.hashSync(this.password, salt);
+    console.log(" initHash ", hash);
     this.set('password', hash);
+    this.set('salt', salt);
   }
 });
 

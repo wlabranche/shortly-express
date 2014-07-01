@@ -101,16 +101,25 @@ app.post('/signup', function(req, res) {
 
 app.post('/login', function(req, res) {
 
-  console.log("Logging in: ", req, res);
+  // console.log("Logging in: ", req, res);
 
   var username = req.body.username;
   var password = req.body.password;
 
   db.knex('users').where('username', '=', username).then(function(result) {
-    var dbHash = result[0].password;
-    console.log("dbHash", dbHash);
-    console.log(bcrypt.compareSync(password, dbHash));
-    if (bcrypt.compareSync(password, dbHash)) {
+    var saltyHash = result[0].password;
+    var ogHash = bcrypt.hashSync(password, result[0].salt);
+
+    console.log("  salt", result[0].salt);
+    console.log("saltyHash", saltyHash);
+    console.log("  ogHash", ogHash);
+    console.log("  Pass", password);
+
+    console.log(saltyHash === ogHash);
+    console.log(bcrypt.compareSync(password, saltyHash));
+
+
+    if (bcrypt.compareSync(password, saltyHash)) {
       console.log("You're logged in");
       // start a new session
       // redirect to user page
@@ -142,7 +151,7 @@ var newUser = function(username, password) {
     'username': username,
     'password': password
   }).save().then(function(model){
-    console.log(model);
+    // console.log(model);
     // var options = {
     //   'method': 'POST',
     //   'followAllRedirects': true,
